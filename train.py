@@ -46,6 +46,7 @@ print(f"\nDatos listos. Muestras de entrenamiento: {len(train_dataset)}, Muestra
 unet_model = model.SimpleUnet(in_channels=4, out_classes=1).to(DEVICE)
 loss_fn = nn.L1Loss() # L1Loss es el MAE, perfecto para nuestra métrica
 optimizer = AdamW(unet_model.parameters(), lr=LEARNING_RATE)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
 
 print("Modelo, función de pérdida y optimizador inicializados.")
 
@@ -96,6 +97,7 @@ for epoch in range(NUM_EPOCHS):
         print(f"¡Mejora en MAE de validación! {best_val_mae:.2f} -> {avg_val_mae_denorm:.2f}. Guardando modelo...")
         best_val_mae = avg_val_mae_denorm
         torch.save(unet_model.state_dict(), MODEL_SAVE_PATH)
+    scheduler.step()
 
 ml_utils.plot_training_history(train_mae_history, val_mae_history)
 
