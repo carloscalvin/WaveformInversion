@@ -33,7 +33,7 @@ MODEL_SAVE_PATH = os.path.join(MODELS_DIR, f'best_unet_model_{timestamp}.pth')
 print(f"El mejor modelo se guardará en: {MODEL_SAVE_PATH}")
 
 # --- PREPARACIÓN DE DATOS ---
-# Instanciamos nuestro dataset solo con la familia FlatVel_A
+# Instanciamos nuestro dataset con todas las familias
 full_dataset = ml_utils.SeismicDataset(
     data_family_paths=all_family_paths,
     preprocess_function=ps_utils.preprocess_seismic_with_attributes,
@@ -44,9 +44,10 @@ full_dataset = ml_utils.SeismicDataset(
 train_size = int(0.8 * len(full_dataset))
 val_size = len(full_dataset) - train_size
 train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
+train_dataset_augmented = ml_utils.AugmentationWrapper(train_dataset, hflip_prob=0.5)
 
 # Creamos los DataLoaders
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
+train_loader = DataLoader(train_dataset_augmented, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE * 2, shuffle=False, num_workers=0)
 
 print(f"\nDatos listos. Muestras de entrenamiento: {len(train_dataset)}, Muestras de validación: {len(val_dataset)}")

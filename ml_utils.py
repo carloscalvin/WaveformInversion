@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import random
 import os
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
@@ -17,6 +18,32 @@ def calculate_mae(y_pred, y_true):
         torch.Tensor: Un tensor escalar con el valor del MAE.
     """
     return torch.mean(torch.abs(y_pred - y_true))
+
+class AugmentationWrapper(Dataset):
+    def __init__(self, dataset, hflip_prob=0.5):
+        """
+        Envoltorio que aplica aumentaciones a un dataset existente.
+        
+        Args:
+            dataset: Una instancia de un objeto Dataset de PyTorch.
+            hflip_prob (float): Probabilidad de aplicar un volteo horizontal.
+        """
+        self.dataset = dataset
+        self.hflip_prob = hflip_prob
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        # Obtener la muestra original del dataset envuelto
+        input_tensor, target_norm = self.dataset[idx]
+        
+        # Aplicar la aumentación con una cierta probabilidad
+        if random.random() < self.hflip_prob:
+            input_tensor = torch.flip(input_tensor, dims=[2])
+            target_norm = torch.flip(target_norm, dims=[2])
+
+        return input_tensor, target_norm
 
 class SeismicDataset(Dataset):
     def __init__(self, data_family_paths, preprocess_function, target_shape=(70, 70), dt=0.001, vmin=1500.0, vmax=4500.0):
