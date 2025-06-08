@@ -10,7 +10,7 @@ import torch.nn.functional as F
 if __name__ == '__main__':
     # --- CONFIGURACIÓN DE INFERENCIA ---
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    MODEL_PATH = 'models/best_unet_model_20250607_232020.pth'
+    MODEL_PATH = 'models/best_unet_model_20250608_001842.pth'
     
     # Ruta a los datos de test
     PATH_TO_TEST_DATA = 'kaggle/input/test/'
