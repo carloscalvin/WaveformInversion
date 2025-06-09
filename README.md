@@ -90,10 +90,10 @@ A continuación se detallan las tareas completadas y los siguientes pasos planea
 - [x] **3. Creación del pipeline de entrenamiento (prueba de concepto)**
 - [x] **4. Primera iteración y submission a Kaggle**
 - [x] **5. Mejora de la robustez del modelo y validación**
+- [x] **6. (BLOQUEANTE) Optimizar pipeline de datos: preprocesar a ficheros individuales**
 
 ### Pendiente
 
-- [ ] **6. (BLOQUEANTE) Optimizar pipeline de datos: preprocesar a ficheros individuales**
 - [ ] **7. Entrenamiento a escala: obtener baseline con datos completos**
 - [ ] **8. Experimentación: probar arquitecturas de modelo más grandes**
 - [ ] **9. Experimentación: entrenar con función de pérdida híbrida**
