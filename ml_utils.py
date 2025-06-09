@@ -46,100 +46,70 @@ class AugmentationWrapper(Dataset):
         return input_tensor, target_norm
 
 class SeismicDataset(Dataset):
-    def __init__(self, data_family_paths, preprocess_function, target_shape=(70, 70), dt=0.001, vmin=1500.0, vmax=4500.0):
+    """
+    Dataset optimizado para cargar datos sísmicos preprocesados como ficheros individuales,
+    tratando cada fuente como una muestra de entrenamiento independiente.
+    """
+    def __init__(self, preprocessed_data_path, preprocess_function, num_sources_per_sample=5, target_shape=(70, 70), dt=0.001, vmin=1500.0, vmax=4500.0):
         """
-        Dataset para cargar los datos sísmicos de OpenFWI.
-        
         Args:
-            data_family_paths (list): Lista de rutas a las carpetas de las familias (ej. ['.../FlatVel_A/']).
+            preprocessed_data_path (str): Ruta al directorio que contiene los ficheros .npz preprocesados.
             preprocess_function (callable): La función que toma un sismograma y devuelve los canales de atributos.
-            dt (float): Intervalo de tiempo para el pre-procesado.
+            num_sources_per_sample (int): El número de fuentes guardadas en cada fichero .npz.
         """
         super().__init__()
         self.preprocess = preprocess_function
         self.dt = dt
         self.target_shape = target_shape
-        self.samples = []
-        self.cache = {}
         self.vmin = vmin
         self.vmax = vmax
-        num_samples_in_file = 500
-        num_sources_to_use = 5
 
-        print("Buscando archivos y creando el índice del dataset...")
-        for family_path in data_family_paths:
-            # Detectar la estructura de la carpeta (Vel/Style vs Fault)
-            is_vel_style = os.path.isdir(os.path.join(family_path, 'model'))
-            
-            if is_vel_style:
-                model_dir = os.path.join(family_path, 'model')
-                data_dir = os.path.join(family_path, 'data')
-                model_files = sorted(os.listdir(model_dir))
-                data_files = sorted(os.listdir(data_dir))
-                
-                for mf, df in zip(model_files, data_files):
-                    # Para cada par de archivos, añadimos 500 muestras a nuestra lista
-                    for i in range(num_samples_in_file):
-                        for s in range(num_sources_to_use):
-                            self.samples.append({
-                                'vel_path': os.path.join(model_dir, mf),
-                                'seis_path': os.path.join(data_dir, df),
-                                'index_in_file': i,
-                                'source_index': s
-                            })
-            else: # Estructura tipo Fault
-                vel_files = sorted([f for f in os.listdir(family_path) if f.startswith('vel')])
-                for vf in vel_files:
-                    sf = vf.replace('vel', 'seis')
-                    for i in range(num_samples_in_file):
-                        for s in range(num_sources_to_use):
-                            self.samples.append({
-                                'vel_path': os.path.join(family_path, vf),
-                                'seis_path': os.path.join(family_path, sf),
-                                'index_in_file': i,
-                                'source_index': s
-                            })
+        # Escanear todos los ficheros .npz base
+        all_files = []
+        print("Buscando ficheros de muestras preprocesadas...")
 
-        print(f"Dataset creado. Número total de muestras encontradas: {len(self.samples)}")
+        for root, _, files in os.walk(preprocessed_data_path):
+            for file in files:
+                if file.endswith('.npz'):
+                    all_files.append(os.path.join(root, file))
+        
+        # Crear un índice que mapea cada muestra a un fichero Y una fuente
+        # El resultado es una lista de tuplas: (ruta_al_fichero, indice_de_fuente)
+        self.samples = []
+        for filepath in all_files:
+            for source_idx in range(num_sources_per_sample):
+                self.samples.append((filepath, source_idx))
+
+        print(f"Dataset creado. {len(all_files)} ficheros base encontrados.")
+        print(f"Número total de muestras de entrenamiento (ficheros x fuentes): {len(self.samples)}")
 
     def __len__(self):
+        # La longitud del dataset es el número total de fuentes disponibles
         return len(self.samples)
 
     def __getitem__(self, idx):
-        sample_info = self.samples[idx]
-        vel_path = sample_info['vel_path']
-        seis_path = sample_info['seis_path']
+        # Obtener la ruta del fichero y el índice de la fuente para este item
+        filepath, source_idx = self.samples[idx]
+        
+        # Cargar el fichero .npz.
+        with np.load(filepath) as data:
+            velocity_map = torch.from_numpy(data['velocity_map']).float()
+            seismic_data_all_sources = torch.from_numpy(data['seismic_data']).float()
 
-        if vel_path not in self.cache:
-            self.cache[vel_path] = np.load(vel_path)
-        vel_batch = self.cache[vel_path]
-
-        if seis_path not in self.cache:
-            self.cache[seis_path] = np.load(seis_path)
-        seis_batch = self.cache[seis_path]
-
-        # Extraer la muestra específica
-        index = sample_info['index_in_file']
-        source_idx = sample_info['source_index']
-        sample_id = f"{vel_path}_{index}"
-
-        velocity_map = torch.from_numpy(vel_batch[index]).float()
-        shot_gather = torch.from_numpy(seis_batch[index, source_idx]).float()
-
-        # Aplicar el pre-procesado para obtener los 4 canales
+        # Seleccionar el sismograma de la fuente específica
+        shot_gather = seismic_data_all_sources[source_idx]
         input_tensor = self.preprocess(shot_gather, dt=self.dt)
-        
-        # Añadimos una dimensión de lote para la función de interpolación
-        input_tensor = input_tensor.unsqueeze(0)  # Shape ahora: (1, 4, 1000, 70)
-        
-        # Redimensionamos la entrada a la forma del target (70, 70)
-        resized_input = F.interpolate(input_tensor, size=self.target_shape, mode='bilinear', align_corners=False)
-        
-        # Quitamos la dimensión de lote que añadimos
-        resized_input = resized_input.squeeze(0) # Shape final: (4, 70, 70)
+        resized_input = F.interpolate(input_tensor.unsqueeze(0), size=self.target_shape, mode='bilinear', align_corners=False).squeeze(0)
         target_norm = (velocity_map - self.vmin) / (self.vmax - self.vmin)
+        
+        # Añadimos la dimensión de canal para que tenga la forma [1, 70, 70]
+        target_norm = target_norm.unsqueeze(0)
+
+        # Generar un ID de muestra único para esta fuente específica
+        sample_id = f"{os.path.basename(filepath).replace('.npz', '')}_source_{source_idx}"
 
         return resized_input, target_norm, sample_id
+
 
 def plot_training_history(train_history, val_history):
     """

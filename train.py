@@ -12,15 +12,7 @@ import ml_utils, ps_utils, model, utils
 # --- CONFIGURACIÓN DEL ENTRENAMIENTO ---
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Usando dispositivo: {DEVICE}")
-BASE_DATA_PATH = 'kaggle/input/train_samples/'
-families_to_use = [
-    'FlatVel_A', 'FlatVel_B',
-    'CurveVel_A', 'CurveVel_B',
-    'FlatFault_A', 'FlatFault_B',
-    'CurveFault_A', 'CurveFault_B',
-    'Style_A', 'Style_B'
-]
-all_family_paths = [os.path.join(BASE_DATA_PATH, family) for family in families_to_use]
+preprocessed_data_path = 'data/preprocessed_train/'
 
 BATCH_SIZE = 32
 LEARNING_RATE = 1e-3
@@ -35,7 +27,7 @@ print(f"El mejor modelo se guardará en: {MODEL_SAVE_PATH}")
 # --- PREPARACIÓN DE DATOS ---
 # Instanciamos nuestro dataset con todas las familias
 full_dataset = ml_utils.SeismicDataset(
-    data_family_paths=all_family_paths,
+    preprocessed_data_path=preprocessed_data_path,
     preprocess_function=ps_utils.preprocess_seismic_with_attributes,
     vmin=VMIN, vmax=VMAX
 )
