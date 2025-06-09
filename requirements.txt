@@ -1,0 +1,11 @@
+torch
+torchvision
+torchaudio
+numpy
+matplotlib
+tqdm
+segmentation-models-pytorch
+scikit-image
+bruges
+scikit-fmm
+optuna
