@@ -7,7 +7,7 @@ El modelo se desarrolla y entrena utilizando datos del dataset público **OpenFW
 ## Características clave
 
 * **Ingeniería de características guiada por la física:** En lugar de usar datos sísmicos crudos, se realiza un preprocesamiento para generar 4 canales de entrada (sismograma, envolvente, fase y frecuencia instantánea) utilizando la librería `bruges`, lo que enriquece la información de entrada para el modelo.
-* **Arquitectura U-Net moderna:** Se utiliza una U-Net con un backbone pre-entrenado, implementada a través de la librería `segmentation-models-pytorch` para un desarrollo rápido y robusto.
+* **Arquitectura U-Net moderna:** Se utiliza una U-Net con un backbone preentrenado, implementada a través de la librería `segmentation-models-pytorch` para un desarrollo rápido y robusto.
 * **Validación robusta:** La métrica de validación se calcula promediando las predicciones de múltiples fuentes sísmicas (ensembling de fuentes), lo que proporciona una evaluación más estable y fiable del rendimiento del modelo.
 
 ## Stack tecnológico
@@ -41,33 +41,40 @@ El modelo se desarrolla y entrena utilizando datos del dataset público **OpenFW
 
 ## Instalación
 
-1.  Clona el repositorio:
-    ```bash
-    git clone [https://github.com/carloscalvin/WaveformInversion.git](https://github.com/carloscalvin/WaveformInversion.git)
-    cd WaveformInversion
-    ```
+### Paso 1: Clonar el repositorio
 
-2.  Crea un entorno virtual y actívalo:
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # En Windows: venv\Scripts\activate
-    ```
+```bash
+git clone https://github.com/carloscalvin/WaveformInversion.git
+cd WaveformInversion
+```
 
-3.  Instala las dependencias:
-    ```bash
-    pip install -r requirements.txt
-    ```
+### Paso 2: Crear y activar un entorno virtual
+
+```bash
+python -m venv venv
+source venv/bin/activate  # En Windows: venv\Scripts\activate
+```
+
+### Paso 3: Instalar las dependencias
+
+```bash
+pip install -r requirements.txt
+```
 
 ## Uso
 
 ### Entrenamiento
+
 Para entrenar el modelo, ejecuta el script `train.py`. Asegúrate de que las rutas a los datos estén configuradas correctamente dentro del script.
+
 ```bash
 python train.py
 ```
 
 ### Inferencia
+
 Para realizar una predicción sobre un nuevo sismograma usando un modelo ya entrenado:
+
 ```bash
 python inference.py --model_path models/best_model.pth --input_file ruta/a/tu/sismograma.npy
 ```
@@ -76,14 +83,16 @@ python inference.py --model_path models/best_model.pth --input_file ruta/a/tu/si
 
 A continuación se detallan las tareas completadas y los siguientes pasos planeados.
 
-#### Realizado
+### Realizado
+
 - [x] **1. Análisis exploratorio de datos (EDA)**
 - [x] **2. Ingeniería de características con atributos sísmicos**
 - [x] **3. Creación del pipeline de entrenamiento (prueba de concepto)**
 - [x] **4. Primera iteración y submission a Kaggle**
 - [x] **5. Mejora de la robustez del modelo y validación**
 
-#### Pendiente
+### Pendiente
+
 - [ ] **6. (BLOQUEANTE) Optimizar pipeline de datos: preprocesar a ficheros individuales**
 - [ ] **7. Entrenamiento a escala: obtener baseline con datos completos**
 - [ ] **8. Experimentación: probar arquitecturas de modelo más grandes**
@@ -91,11 +100,11 @@ A continuación se detallan las tareas completadas y los siguientes pasos planea
 - [ ] **10. Desarrollo del refinador (Test-Time Optimization - TTO)**
 - [ ] **11. Evaluación final y submission**
 
-#### Mejoras avanzadas (backlog)
+### Mejoras avanzadas (backlog)
+
 - [ ] **12. Experimentación: crear un ensemble de modelos**
 - [ ] **13. Análisis: investigar patrones de error del modelo**
 - [ ] **14. Optimización: afinar hiperparámetros del modelo base**
-
 
 ## Licencia
 
