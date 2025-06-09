@@ -6,20 +6,28 @@ import ps_utils
 import utils
 import model as model_loader
 import torch.nn.functional as F
+from tqdm.auto import tqdm
 
 if __name__ == '__main__':
     # --- CONFIGURACIÓN DE INFERENCIA ---
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    MODEL_PATH = 'models/best_unet_model_20250608_135026.pth'
-    
-    # Ruta a los datos de test
-    PATH_TO_TEST_DATA = 'kaggle/input/test/'
-    
+    SAMPLES_TO_VISUALIZE = 12
+    MODEL_PATH = 'models/best_unet_model_20250608_175308.pth'
+    BASE_DATA_PATH = 'kaggle/input/train_samples/'
+    families_to_use = [
+        'FlatVel_A', 'FlatVel_B',
+        'CurveVel_A', 'CurveVel_B',
+        'FlatFault_A', 'FlatFault_B',
+        'CurveFault_A', 'CurveFault_B',
+        'Style_A', 'Style_B'
+    ]
+
     # Parámetros consistentes con el entrenamiento
     VMIN, VMAX = 1500.0, 4500.0
     VELOCITY_RANGE = VMAX - VMIN
     TARGET_SHAPE = (70, 70)
     DT = 0.001
+    NUM_SOURCES_TO_ENSEMBLE = 5
 
     print(f"Usando dispositivo: {DEVICE}")
     print(f"Cargando modelo desde: {MODEL_PATH}")
@@ -36,34 +44,66 @@ if __name__ == '__main__':
 
     # --- INFERENCIA EN MUESTRAS ALEATORIAS ---
     try:
-        test_files = [f for f in os.listdir(PATH_TO_TEST_DATA) if f.endswith('.npy')]
-        # Seleccionar 5 archivos al azar
-        random_files_to_test = random.sample(test_files, min(5, len(test_files)))
-
-        print(f"\nRealizando inferencia en {len(random_files_to_test)} archivos de test aleatorios...")
-
         with torch.no_grad():
-            for filename in random_files_to_test:
-                # Cargar y pre-procesar una muestra aleatoria del archivo
-                seis_path = os.path.join(PATH_TO_TEST_DATA, filename)
-                seis_batch = np.load(seis_path)
-                
-                sample_idx = random.randint(0, seis_batch.shape[0] - 1)
-                shot_gather = torch.from_numpy(seis_batch[sample_idx]).float()
-                
-                input_tensor = ps_utils.preprocess_seismic_with_attributes(shot_gather, dt=DT)
-                resized_input = F.interpolate(input_tensor.unsqueeze(0), size=TARGET_SHAPE, mode='bilinear', align_corners=False)
+            for i in range(SAMPLES_TO_VISUALIZE):        
+                random_family = random.choice(families_to_use)
+                family_path = os.path.join(BASE_DATA_PATH, random_family)
+                is_vel_style = os.path.isdir(os.path.join(family_path, 'model'))
+                if is_vel_style:
+                    data_dir = os.path.join(family_path, 'data')
+                    model_dir = os.path.join(family_path, 'model')
+                    seis_filename = random.choice(os.listdir(data_dir))
+                    vel_filename = seis_filename.replace('data', 'model')
+                    seis_path = os.path.join(data_dir, seis_filename)
+                    vel_path = os.path.join(model_dir, vel_filename)
+                else:
+                    all_vel_files = [f for f in os.listdir(family_path) if f.startswith('vel')]
+                    vel_filename = random.choice(all_vel_files)
+                    seis_filename = vel_filename.replace('vel', 'seis')
+                    seis_path = os.path.join(family_path, seis_filename)
+                    vel_path = os.path.join(family_path, vel_filename)
 
-                # Hacer la predicción
-                prediction_norm = best_model(resized_input.to(DEVICE)).cpu()
+                # Cargar ambos archivos: datos sísmicos y mapa de velocidad real
+                seis_file_data = np.load(seis_path)
+                vel_file_data = np.load(vel_path)
+        
+                # Seleccionar una muestra aleatoria de dentro del archivo
+                sample_idx = random.randint(0, seis_file_data.shape[0] - 1)
+                sample_seismic_data = seis_file_data[sample_idx]
+                ground_truth_map = vel_file_data[sample_idx]
                 
-                # Desnormalizar
-                prediction_denorm = prediction_norm.squeeze() * VELOCITY_RANGE + VMIN
+                if sample_seismic_data.ndim != 3 or sample_seismic_data.shape[0] < NUM_SOURCES_TO_ENSEMBLE:
+                    print(f"Aviso: Saltando archivo {seis_path} por tener una forma inesperada: {sample_seismic_data.shape}")
+                    continue
 
-                # Visualizar
-                utils.plot_inference_result(
-                    prediction_denorm.numpy(),
-                    title=f'Predicción para Muestra Aleatoria de:\n{filename}'
+                source_predictions = []
+                print(f"\nProcesando archivo: {seis_path}")
+                
+                # Iterar a través de las fuentes para crear el ensembling
+                for source_idx in tqdm(range(NUM_SOURCES_TO_ENSEMBLE), desc=f"Fuentes de {seis_path}"):
+                    shot_gather = torch.from_numpy(sample_seismic_data[source_idx]).float()
+                    # Pre-procesar el sismograma de la fuente actual
+                    input_tensor = ps_utils.preprocess_seismic_with_attributes(shot_gather, dt=DT)
+                    resized_input = F.interpolate(input_tensor.unsqueeze(0), size=TARGET_SHAPE, mode='bilinear', align_corners=False)
+
+                    # Hacer la predicción para esta fuente
+                    prediction_norm = best_model(resized_input.to(DEVICE)).cpu()
+                    source_predictions.append(prediction_norm)
+
+                # Apilar y promediar las predicciones de todas las fuentes
+                ensembled_prediction_norm = torch.stack(source_predictions).mean(dim=0)
+                
+                # Desnormalizar el resultado final promediado
+                prediction_denorm = ensembled_prediction_norm.squeeze() * VELOCITY_RANGE + VMIN
+                ground_truth_denorm = torch.from_numpy(ground_truth_map)
+
+                # Visualizar la predicción final
+                utils.plot_map_comparison(
+                    map1=ground_truth_denorm[0],
+                    title1=f'Mapa Real (Ground Truth)\nFamilia: {random_family}',
+                    map2=prediction_denorm,
+                    title2=f'Predicción del Modelo (5 Fuentes)\nMuestra: {seis_filename} #{sample_idx}',
+                    main_title='Comparación de Verificación: Real vs. Predicción'
                 )
 
     except Exception as e:

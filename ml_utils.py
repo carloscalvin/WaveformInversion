@@ -36,7 +36,7 @@ class AugmentationWrapper(Dataset):
 
     def __getitem__(self, idx):
         # Obtener la muestra original del dataset envuelto
-        input_tensor, target_norm = self.dataset[idx]
+        input_tensor, target_norm, _ = self.dataset[idx]
         
         # Aplicar la aumentación con una cierta probabilidad
         if random.random() < self.hflip_prob:
@@ -62,7 +62,9 @@ class SeismicDataset(Dataset):
         self.samples = []
         self.cache = {}
         self.vmin = vmin
-        self.vmax = vmax        
+        self.vmax = vmax
+        num_samples_in_file = 500
+        num_sources_to_use = 5
 
         print("Buscando archivos y creando el índice del dataset...")
         for family_path in data_family_paths:
@@ -77,24 +79,26 @@ class SeismicDataset(Dataset):
                 
                 for mf, df in zip(model_files, data_files):
                     # Para cada par de archivos, añadimos 500 muestras a nuestra lista
-                    num_samples_in_file = 500 # Asumimos 500 por archivo
                     for i in range(num_samples_in_file):
-                        self.samples.append({
-                            'vel_path': os.path.join(model_dir, mf),
-                            'seis_path': os.path.join(data_dir, df),
-                            'index_in_file': i
-                        })
+                        for s in range(num_sources_to_use):
+                            self.samples.append({
+                                'vel_path': os.path.join(model_dir, mf),
+                                'seis_path': os.path.join(data_dir, df),
+                                'index_in_file': i,
+                                'source_index': s
+                            })
             else: # Estructura tipo Fault
                 vel_files = sorted([f for f in os.listdir(family_path) if f.startswith('vel')])
                 for vf in vel_files:
                     sf = vf.replace('vel', 'seis')
-                    num_samples_in_file = 500
                     for i in range(num_samples_in_file):
-                         self.samples.append({
-                            'vel_path': os.path.join(family_path, vf),
-                            'seis_path': os.path.join(family_path, sf),
-                            'index_in_file': i
-                        })
+                        for s in range(num_sources_to_use):
+                            self.samples.append({
+                                'vel_path': os.path.join(family_path, vf),
+                                'seis_path': os.path.join(family_path, sf),
+                                'index_in_file': i,
+                                'source_index': s
+                            })
 
         print(f"Dataset creado. Número total de muestras encontradas: {len(self.samples)}")
 
@@ -116,8 +120,11 @@ class SeismicDataset(Dataset):
 
         # Extraer la muestra específica
         index = sample_info['index_in_file']
+        source_idx = sample_info['source_index']
+        sample_id = f"{vel_path}_{index}"
+
         velocity_map = torch.from_numpy(vel_batch[index]).float()
-        shot_gather = torch.from_numpy(seis_batch[index, 0]).float() # Usamos solo la primera fuente por simplicidad
+        shot_gather = torch.from_numpy(seis_batch[index, source_idx]).float()
 
         # Aplicar el pre-procesado para obtener los 4 canales
         input_tensor = self.preprocess(shot_gather, dt=self.dt)
@@ -132,7 +139,7 @@ class SeismicDataset(Dataset):
         resized_input = resized_input.squeeze(0) # Shape final: (4, 70, 70)
         target_norm = (velocity_map - self.vmin) / (self.vmax - self.vmin)
 
-        return resized_input, target_norm
+        return resized_input, target_norm, sample_id
 
 def plot_training_history(train_history, val_history):
     """

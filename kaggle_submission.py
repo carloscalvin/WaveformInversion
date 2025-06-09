@@ -59,6 +59,7 @@ if __name__ == '__main__':
     VELOCITY_RANGE = VMAX - VMIN
     TARGET_SHAPE = (70, 70)
     DT = 0.001
+    NUM_SOURCES_TO_ENSEMBLE = 5
 
     print(f"Usando dispositivo: {DEVICE}")
     print(f"Cargando modelo desde: {MODEL_PATH}")
@@ -77,26 +78,35 @@ if __name__ == '__main__':
     try:
         test_files = [f for f in os.listdir(PATH_TO_TEST_DATA) if f.endswith('.npy')]
         print(f"\nIniciando inferencia en {len(test_files)} archivos de test...")
+        print(f"Se promediarán las predicciones de las {NUM_SOURCES_TO_ENSEMBLE} fuentes para cada archivo.")
 
         with torch.no_grad():
             for filename in tqdm(test_files, desc="Procesando archivos de test"):
                 oid = filename.replace('.npy', '')
                 seis_path = os.path.join(PATH_TO_TEST_DATA, filename)
-                seis_batch = np.load(seis_path)
-                if seis_batch.ndim == 4:
-                    shot_gather = torch.from_numpy(seis_batch[0, 0]).float()
-                elif seis_batch.ndim == 3:
-                    shot_gather = torch.from_numpy(seis_batch[0]).float()
-                elif seis_batch.ndim == 2:
-                    shot_gather = torch.from_numpy(seis_batch).float()
-                else:
-                    print(f"Saltando {filename} por dimensiones inesperadas: {seis_batch.ndim}")
+                sample_seismic_data = np.load(seis_path)
+
+               # Verificar dimensiones
+                if sample_seismic_data.ndim != 3 or sample_seismic_data.shape[0] < NUM_SOURCES_TO_ENSEMBLE:
+                    print(f"Aviso: Saltando archivo {filename} por tener una forma inesperada: {sample_seismic_data.shape}")
                     continue
 
-                input_tensor = preprocess_seismic_with_attributes(shot_gather, dt=DT)
-                resized_input = F.interpolate(input_tensor.unsqueeze(0), size=TARGET_SHAPE, mode='bilinear', align_corners=False)
-                prediction_norm = model(resized_input.to(DEVICE)).cpu()
-                prediction_denorm = prediction_norm.squeeze().numpy() * VELOCITY_RANGE + VMIN
+                source_predictions = []
+                # Iterar a través de las fuentes para crear el ensembling
+                for source_idx in range(NUM_SOURCES_TO_ENSEMBLE):
+                    shot_gather = torch.from_numpy(sample_seismic_data[source_idx]).float()
+                    
+                    # Pre-procesar y predecir para la fuente actual
+                    input_tensor = preprocess_seismic_with_attributes(shot_gather, dt=DT)
+                    resized_input = F.interpolate(input_tensor.unsqueeze(0), size=TARGET_SHAPE, mode='bilinear', align_corners=False)
+                    prediction_norm = model(resized_input.to(DEVICE)).cpu()
+                    source_predictions.append(prediction_norm)
+
+                # Apilar y promediar las predicciones
+                ensembled_prediction_norm = torch.stack(source_predictions).mean(dim=0)
+                
+                # Desnormalizar el resultado final promediado
+                prediction_denorm = ensembled_prediction_norm.squeeze().numpy() * VELOCITY_RANGE + VMIN
                 
                 for y_pos in range(prediction_denorm.shape[0]):
                     oid_ypos = f"{oid}_y_{y_pos}"

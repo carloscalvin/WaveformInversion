@@ -86,15 +86,32 @@ for epoch in range(NUM_EPOCHS):
 
     # Fase de Validación
     unet_model.eval()
+    all_preds = {}
+    all_targets = {}
     val_loss_acum = 0.0
     with torch.no_grad():
-        for inputs, targets in tqdm(val_loader, desc="Validación"):
+        for inputs, targets, sample_ids in tqdm(val_loader, desc="Validación"):
             inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
             predictions = unet_model(inputs)
-            loss = loss_fn(predictions, targets)
-            val_loss_acum += loss.item()
+            for i in range(len(sample_ids)):
+                sample_id = sample_ids[i]
+                if sample_id not in all_preds:
+                    all_preds[sample_id] = []
+                    all_targets[sample_id] = targets[i]
+                all_preds[sample_id].append(predictions[i])
 
-    avg_val_mae = val_loss_acum / len(val_loader)
+    avg_preds = []
+    final_targets = []
+    for sample_id in all_preds:
+        # Apilamos las 5 predicciones de una muestra y las promediamos
+        ensembled_pred = torch.stack(all_preds[sample_id]).mean(dim=0)
+        avg_preds.append(ensembled_pred)
+        final_targets.append(all_targets[sample_id])
+
+    # Calculamos el MAE final sobre las predicciones promediadas
+    final_preds_tensor = torch.stack(avg_preds)
+    final_targets_tensor = torch.stack(final_targets)
+    avg_val_mae = ml_utils.calculate_mae(final_preds_tensor, final_targets_tensor).item()
 
     avg_train_mae_denorm = avg_train_loss * VELOCITY_RANGE
     avg_val_mae_denorm = avg_val_mae * VELOCITY_RANGE
@@ -122,7 +139,7 @@ best_model.eval() # Poner en modo evaluación
 
 # 2. Obtener un lote de datos del conjunto de validación
 with torch.no_grad():
-    inputs_norm, targets_norm = next(iter(val_loader))
+    inputs_norm, targets_norm, _ = next(iter(val_loader))
     inputs_norm = inputs_norm.to(DEVICE)
 
     # 3. Hacer una predicción con el mejor modelo
