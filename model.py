@@ -1,8 +1,8 @@
 import torch.nn as nn
 import segmentation_models_pytorch as smp
 
-class SimpleUnet(nn.Module):
-    def __init__(self, in_channels=4, out_classes=1):
+class EfficientNet12(nn.Module):
+    def __init__(self, in_channels=4, out_classes=1, encoder_weights="noisy-student"):
         """
         Modelo U-Net simple usando segmentation-models-pytorch.
         
@@ -13,8 +13,8 @@ class SimpleUnet(nn.Module):
         super().__init__()
 
         self.model = smp.Unet(
-            encoder_name="resnet18",
-            encoder_weights="imagenet",
+            encoder_name="timm-efficientnet-l2",
+            encoder_weights=encoder_weights,
             in_channels=in_channels,
             classes=out_classes,
             activation='sigmoid'

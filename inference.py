@@ -12,7 +12,7 @@ if __name__ == '__main__':
     # --- CONFIGURACIÓN DE INFERENCIA ---
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     SAMPLES_TO_VISUALIZE = 12
-    MODEL_PATH = 'models/best_unet_model_20250608_175308.pth'
+    MODEL_PATH = 'models/best_efficientnet12_model_20250609_184324.pth'
     BASE_DATA_PATH = 'kaggle/input/train_samples/'
     families_to_use = [
         'FlatVel_A', 'FlatVel_B',
@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
     # --- CARGAR MODELO ---
     try:
-        best_model = model_loader.SimpleUnet(in_channels=4, out_classes=1)
+        best_model = model_loader.EfficientNet12(in_channels=4, out_classes=1,encoder_weights=None)
         best_model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
         best_model.to(DEVICE)
         best_model.eval()

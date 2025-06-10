@@ -39,12 +39,14 @@ def preprocess_seismic_with_attributes(shot_gather_tensor, dt=0.001):
     
     return torch.from_numpy(processed_channels).float()
 
-class SimpleUnet(nn.Module):
+class EfficientNet12(nn.Module):
     def __init__(self, in_channels=4, out_classes=1):
         super().__init__()
         self.model = smp.Unet(
-            encoder_name="resnet18", encoder_weights=None,
-            in_channels=in_channels, classes=out_classes,
+            encoder_name="timm-efficientnet-l2",
+            encoder_weights=None,
+            in_channels=in_channels,
+            classes=out_classes,
             activation='sigmoid'
         )
     def forward(self, x):
@@ -52,7 +54,7 @@ class SimpleUnet(nn.Module):
 
 if __name__ == '__main__':
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    MODEL_PATH = '/kaggle/input/best-unet-model/best_unet_model_20250608_135026.pth'
+    MODEL_PATH = '/kaggle/input/best-unet-model/best_efficientnet12_model_20250609_184324.pth'
     PATH_TO_TEST_DATA = '/kaggle/input/waveform-inversion/test/'
     
     VMIN, VMAX = 1500.0, 4500.0
@@ -65,7 +67,7 @@ if __name__ == '__main__':
     print(f"Cargando modelo desde: {MODEL_PATH}")
 
     try:
-        model = SimpleUnet(in_channels=4, out_classes=1)
+        model = EfficientNet12(in_channels=4, out_classes=1)
         model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
         model.to(DEVICE)
         model.eval()
