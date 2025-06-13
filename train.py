@@ -5,9 +5,13 @@ from torch import nn
 from torch.optim import AdamW
 from tqdm.auto import tqdm
 from datetime import datetime
+from ml_utils import SeismicDataset, plot_training_history
+from ml_utils import AugmentationWrapper, calculate_mae
+from ps_utils import preprocess_seismic_with_attributes
+from utils import plot_map_comparison
+from model import SimpleUnet
 
 # 1. Recargar todos nuestros módulos
-import ml_utils, ps_utils, model, utils
 
 # --- CONFIGURACIÓN DEL ENTRENAMIENTO ---
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -15,20 +19,23 @@ print(f"Usando dispositivo: {DEVICE}")
 preprocessed_data_path = 'data/preprocessed_train/'
 
 BATCH_SIZE = 32
+NUM_WORKERS = 0
 LEARNING_RATE = 1e-3
 NUM_EPOCHS = 50
 VMIN, VMAX = 1500.0, 4500.0
 VELOCITY_RANGE = VMAX - VMIN
 MODELS_DIR = 'models'
+CHECKPOINTS_DIR = 'checkpoints'
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 MODEL_SAVE_PATH = os.path.join(MODELS_DIR, f'best_efficientnet12_model_{timestamp}.pth')
+CHECKPOINT_SAVE_PATH = os.path.join(CHECKPOINTS_DIR, 'latest_checkpoint.pth')
 print(f"El mejor modelo se guardará en: {MODEL_SAVE_PATH}")
 
 # --- PREPARACIÓN DE DATOS ---
 # Instanciamos nuestro dataset con todas las familias
-full_dataset = ml_utils.SeismicDataset(
+full_dataset = SeismicDataset(
     preprocessed_data_path=preprocessed_data_path,
-    preprocess_function=ps_utils.preprocess_seismic_with_attributes,
+    preprocess_function=preprocess_seismic_with_attributes,
     vmin=VMIN, vmax=VMAX
 )
 
@@ -36,16 +43,16 @@ full_dataset = ml_utils.SeismicDataset(
 train_size = int(0.8 * len(full_dataset))
 val_size = len(full_dataset) - train_size
 train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
-train_dataset_augmented = ml_utils.AugmentationWrapper(train_dataset, hflip_prob=0.5)
+train_dataset_augmented = AugmentationWrapper(train_dataset, hflip_prob=0.5)
 
 # Creamos los DataLoaders
-train_loader = DataLoader(train_dataset_augmented, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
-val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE * 2, shuffle=False, num_workers=0)
+train_loader = DataLoader(train_dataset_augmented, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE * 2, shuffle=False, num_workers=NUM_WORKERS, pin_memory=True)
 
 print(f"\nDatos listos. Muestras de entrenamiento: {len(train_dataset)}, Muestras de validación: {len(val_dataset)}")
 
 # --- INICIALIZACIÓN DEL MODELO ---
-unet_model = model.EfficientNet12(in_channels=4, out_classes=1).to(DEVICE)
+unet_model = SimpleUnet(encoder_name="resnet18", encoder_weights="imagenet", in_channels=4, out_classes=1).to(DEVICE)
 loss_fn = nn.L1Loss() # L1Loss es el MAE, perfecto para nuestra métrica
 optimizer = AdamW(unet_model.parameters(), lr=LEARNING_RATE)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
@@ -57,7 +64,18 @@ train_mae_history = []
 val_mae_history = []
 best_val_mae = float('inf')
 
-for epoch in range(NUM_EPOCHS):
+start_epoch = 0
+if os.path.exists(CHECKPOINT_SAVE_PATH):
+    print("Cargando checkpoint...")
+    checkpoint = torch.load(CHECKPOINT_SAVE_PATH)
+    unet_model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+    start_epoch = checkpoint['epoch']
+    best_val_mae = checkpoint['best_val_mae']
+    print(f"Reanudando desde la época {start_epoch}")
+
+for epoch in range(start_epoch, NUM_EPOCHS):
     print(f"\n--- Iniciando Época {epoch+1}/{NUM_EPOCHS} ---")
 
     # Fase de Entrenamiento
@@ -103,7 +121,7 @@ for epoch in range(NUM_EPOCHS):
     # Calculamos el MAE final sobre las predicciones promediadas
     final_preds_tensor = torch.stack(avg_preds)
     final_targets_tensor = torch.stack(final_targets)
-    avg_val_mae = ml_utils.calculate_mae(final_preds_tensor, final_targets_tensor).item()
+    avg_val_mae = calculate_mae(final_preds_tensor, final_targets_tensor).item()
 
     avg_train_mae_denorm = avg_train_loss * VELOCITY_RANGE
     avg_val_mae_denorm = avg_val_mae * VELOCITY_RANGE
@@ -111,20 +129,27 @@ for epoch in range(NUM_EPOCHS):
     val_mae_history.append(avg_val_mae_denorm)
 
     print(f"Época {epoch+1} completada. Loss de Entrenamiento: {avg_train_mae_denorm:.2f} | MAE de Validación: {avg_val_mae_denorm:.2f}")
-
+    checkpoint = {
+        'epoch': epoch+1,
+        'model_state_dict': unet_model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'scheduler_state_dict': scheduler.state_dict(),
+        'best_val_mae': best_val_mae
+    }
+    torch.save(checkpoint, CHECKPOINT_SAVE_PATH)
     if avg_val_mae_denorm < best_val_mae:
         print(f"¡Mejora en MAE de validación! {best_val_mae:.2f} -> {avg_val_mae_denorm:.2f}. Guardando modelo...")
         best_val_mae = avg_val_mae_denorm
         torch.save(unet_model.state_dict(), MODEL_SAVE_PATH)
     scheduler.step()
 
-ml_utils.plot_training_history(train_mae_history, val_mae_history)
+plot_training_history(train_mae_history, val_mae_history)
 
 # --- VISUALIZACIÓN FINAL CON EL MEJOR MODELO ---
 print("\n--- Visualizando la predicción del MEJOR modelo en un lote de validación ---")
 
 # 1. Crear una nueva instancia del modelo y cargar los pesos del mejor guardado
-best_model = model.EfficientNet12(in_channels=4, out_classes=1)
+best_model = SimpleUnet(encoder_name="resnet18", encoder_weights="imagenet", in_channels=4, out_classes=1)
 best_model.load_state_dict(torch.load(MODEL_SAVE_PATH))
 best_model.to(DEVICE)
 best_model.eval() # Poner en modo evaluación
@@ -143,10 +168,10 @@ with torch.no_grad():
 
     targets_denorm = denormalize(targets_norm)
     prediction_denorm = denormalize(predictions_norm)
-    
+
     # 5. Visualizar la comparación para una muestra del lote
-    sample_idx_to_show = 5 
-    utils.plot_map_comparison(
+    sample_idx_to_show = 5
+    plot_map_comparison(
         map1=targets_denorm[sample_idx_to_show, 0],
         title1=f'Mapa Real (Validación, Muestra #{sample_idx_to_show})',
         map2=prediction_denorm[sample_idx_to_show, 0],

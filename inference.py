@@ -34,7 +34,11 @@ if __name__ == '__main__':
 
     # --- CARGAR MODELO ---
     try:
-        best_model = model_loader.EfficientNet12(in_channels=4, out_classes=1,encoder_weights=None)
+        best_model = model_loader.SimpleUnet(
+            encoder_name="timm-efficientnet-l2",
+            in_channels=4, 
+            out_classes=1,
+            encoder_weights=None)
         best_model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
         best_model.to(DEVICE)
         best_model.eval()
