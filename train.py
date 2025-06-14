@@ -73,6 +73,8 @@ if os.path.exists(CHECKPOINT_SAVE_PATH):
     scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
     start_epoch = checkpoint['epoch']
     best_val_mae = checkpoint['best_val_mae']
+    train_mae_history = checkpoint.get('train_mae_history', [])
+    val_mae_history = checkpoint.get('val_mae_history', [])
     print(f"Reanudando desde la época {start_epoch}")
 
 for epoch in range(start_epoch, NUM_EPOCHS):
@@ -130,11 +132,13 @@ for epoch in range(start_epoch, NUM_EPOCHS):
 
     print(f"Época {epoch+1} completada. Loss de Entrenamiento: {avg_train_mae_denorm:.2f} | MAE de Validación: {avg_val_mae_denorm:.2f}")
     checkpoint = {
-        'epoch': epoch+1,
+        'epoch': epoch + 1,
         'model_state_dict': unet_model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'scheduler_state_dict': scheduler.state_dict(),
-        'best_val_mae': best_val_mae
+        'best_val_mae': best_val_mae,
+        'train_mae_history': train_mae_history,
+        'val_mae_history': val_mae_history
     }
     torch.save(checkpoint, CHECKPOINT_SAVE_PATH)
     if avg_val_mae_denorm < best_val_mae:
