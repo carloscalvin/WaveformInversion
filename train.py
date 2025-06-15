@@ -16,16 +16,16 @@ from model import SimpleUnet
 # --- CONFIGURACIÓN DEL ENTRENAMIENTO ---
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Usando dispositivo: {DEVICE}")
-preprocessed_data_path = 'data/preprocessed_train/'
+preprocessed_data_path = '/content/dataset/preprocessed_train/'
 
-BATCH_SIZE = 32
+BATCH_SIZE = 8
 NUM_WORKERS = 0
 LEARNING_RATE = 1e-3
 NUM_EPOCHS = 50
 VMIN, VMAX = 1500.0, 4500.0
 VELOCITY_RANGE = VMAX - VMIN
-MODELS_DIR = 'models'
-CHECKPOINTS_DIR = 'checkpoints'
+MODELS_DIR = '/content/models'
+CHECKPOINTS_DIR = '/content/checkpoints'
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 MODEL_SAVE_PATH = os.path.join(MODELS_DIR, f'best_efficientnet12_model_{timestamp}.pth')
 CHECKPOINT_SAVE_PATH = os.path.join(CHECKPOINTS_DIR, 'latest_checkpoint.pth')
@@ -52,7 +52,7 @@ val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE * 2, shuffle=False, n
 print(f"\nDatos listos. Muestras de entrenamiento: {len(train_dataset)}, Muestras de validación: {len(val_dataset)}")
 
 # --- INICIALIZACIÓN DEL MODELO ---
-unet_model = SimpleUnet(encoder_name="resnet18", encoder_weights="imagenet", in_channels=4, out_classes=1).to(DEVICE)
+unet_model = SimpleUnet(encoder_name="timm-efficientnet-l2", encoder_weights="noisy-student", in_channels=4, out_classes=1).to(DEVICE)
 loss_fn = nn.L1Loss() # L1Loss es el MAE, perfecto para nuestra métrica
 optimizer = AdamW(unet_model.parameters(), lr=LEARNING_RATE)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
@@ -153,7 +153,7 @@ plot_training_history(train_mae_history, val_mae_history)
 print("\n--- Visualizando la predicción del MEJOR modelo en un lote de validación ---")
 
 # 1. Crear una nueva instancia del modelo y cargar los pesos del mejor guardado
-best_model = SimpleUnet(encoder_name="resnet18", encoder_weights="imagenet", in_channels=4, out_classes=1)
+best_model = SimpleUnet(encoder_name="timm-efficientnet-l2", encoder_weights="noisy-student", in_channels=4, out_classes=1)
 best_model.load_state_dict(torch.load(MODEL_SAVE_PATH))
 best_model.to(DEVICE)
 best_model.eval() # Poner en modo evaluación

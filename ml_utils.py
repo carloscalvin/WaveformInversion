@@ -10,7 +10,7 @@ from tqdm.auto import tqdm
 def calculate_mae(y_pred, y_true):
     """
     Calcula el Error Absoluto Medio (MAE) entre dos tensores de PyTorch.
-    
+
     Args:
         y_pred (torch.Tensor): Tensor con las predicciones del modelo.
         y_true (torch.Tensor): Tensor con los valores reales (etiquetas).
@@ -24,7 +24,7 @@ class AugmentationWrapper(Dataset):
     def __init__(self, dataset, hflip_prob=0.5):
         """
         Envoltorio que aplica aumentaciones a un dataset existente.
-        
+
         Args:
             dataset: Una instancia de un objeto Dataset de PyTorch.
             hflip_prob (float): Probabilidad de aplicar un volteo horizontal.
@@ -38,7 +38,7 @@ class AugmentationWrapper(Dataset):
     def __getitem__(self, idx):
         # Obtener la muestra original del dataset envuelto
         input_tensor, target_norm, _ = self.dataset[idx]
-        
+
         # Aplicar la aumentación con una cierta probabilidad
         if random.random() < self.hflip_prob:
             input_tensor = torch.flip(input_tensor, dims=[2])
@@ -66,7 +66,7 @@ class SeismicDataset(Dataset):
         self.target_shape = target_shape
         self.vmin = vmin
         self.vmax = vmax
-        
+
         # 1. Escanear todos los ficheros .npz base
         all_files = []
         print("Buscando ficheros de muestras preprocesadas...")
@@ -92,7 +92,7 @@ class SeismicDataset(Dataset):
         for filepath in all_files:
             for source_idx in range(num_sources_per_sample):
                 self.samples.append((filepath, source_idx))
-        
+
         print(f"\n¡Dataset precargado en RAM! {len(self.data_cache)} ficheros base cargados.")
         print(f"Número total de muestras de entrenamiento (ficheros x fuentes): {len(self.samples)}")
 
@@ -108,21 +108,21 @@ class SeismicDataset(Dataset):
         velocity_map = cached_data['velocity_map']
         seismic_data_all_sources = cached_data['seismic_data']
 
-        # El resto del preprocesamiento sigue igual
+        # Preprocesamiento
         shot_gather = seismic_data_all_sources[source_idx]
         input_tensor = self.preprocess(shot_gather, dt=self.dt)
-        resized_input = F.interpolate(input_tensor.unsqueeze(0), size=self.target_shape, mode='bilinear', align_corners=False).squeeze(0)
         target_norm = (velocity_map - self.vmin) / (self.vmax - self.vmin)
         target_norm = target_norm.unsqueeze(0)
 
         sample_id = f"{os.path.basename(filepath).replace('.npz', '')}_source_{source_idx}"
 
-        return resized_input, target_norm, sample_id
+        # Devolvemos la resolución completa
+        return input_tensor, target_norm, sample_id
 
 def plot_training_history(train_history, val_history):
     """
     Visualiza el historial de MAE de entrenamiento y validación.
-    
+
     Args:
         train_history (list): Lista con los MAE de entrenamiento por época.
         val_history (list): Lista con los MAE de validación por época.
