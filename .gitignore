@@ -2,3 +2,4 @@
 /data/
 __pycache__/
 /models/best_efficientnet12_model_20250609_184324.pth
+/checkpoints/effnet_30_percent_mae_56_checkpoint.pth

@@ -128,3 +128,43 @@ def plot_training_history(train_history, val_history):
     plt.legend()
     plt.grid(True)
     plt.show()
+
+def inspect_checkpoint(path):
+    if not os.path.exists(path):
+        print("¡Error! El fichero de checkpoint no se encuentra en la ruta especificada.")
+    else:
+        print(f"Inspeccionando el checkpoint: {path}\n")
+        try:
+            checkpoint = torch.load(path, map_location=torch.device('cpu'))
+            print("El checkpoint se ha cargado correctamente. Contenido:\n")
+            if 'epoch' in checkpoint:
+                print(f"Época guardada: {checkpoint['epoch']}")
+            else:
+                print("X No se encontró información de la época.")
+
+            if 'best_val_mae' in checkpoint:
+                print(f"Mejor MAE de validación hasta ahora: {checkpoint['best_val_mae']:.4f}")
+            else:
+                print("X No se encontró el mejor MAE de validación.")
+
+            if 'model_state_dict' in checkpoint:
+                num_layers = len(checkpoint['model_state_dict'])
+                print(f"Estado del modelo: Contiene los pesos de {num_layers} capas/tensores.")
+            else:
+                print("X No se encontró el estado del modelo (state_dict).")
+
+            if 'optimizer_state_dict' in checkpoint:
+                print(f"Estado del optimizador: Guardado correctamente.")
+                num_params_in_optim = len(checkpoint['optimizer_state_dict']['state'])
+                print(f"   El optimizador gestiona el estado de {num_params_in_optim} grupos de parámetros.")
+            else:
+                print("X No se encontró el estado del optimizador.")
+
+            if 'scheduler_state_dict' in checkpoint:
+                print(f"Estado del scheduler: Guardado correctamente.")
+                print(f"   Detalles del scheduler: {checkpoint['scheduler_state_dict']}")
+            else:
+                print("X No se encontró el estado del scheduler.")
+
+        except Exception as e:
+            print(f"Ha ocurrido un error al intentar leer el fichero: {e}")
