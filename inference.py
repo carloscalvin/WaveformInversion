@@ -12,7 +12,7 @@ if __name__ == '__main__':
     # --- CONFIGURACIÓN DE INFERENCIA ---
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     SAMPLES_TO_VISUALIZE = 12
-    MODEL_PATH = 'models/best_efficientnet12_model_20250609_184324.pth'
+    MODEL_PATH = 'models/best_efficientnetb7_model_20250617_200705.pth'
     BASE_DATA_PATH = 'kaggle/input/train_samples/'
     families_to_use = [
         'FlatVel_A', 'FlatVel_B',
@@ -35,7 +35,7 @@ if __name__ == '__main__':
     # --- CARGAR MODELO ---
     try:
         best_model = model_loader.SimpleUnet(
-            encoder_name="timm-efficientnet-l2",
+            encoder_name="timm-efficientnet-b7",
             in_channels=4, 
             out_classes=1,
             encoder_weights=None)
@@ -88,10 +88,9 @@ if __name__ == '__main__':
                     shot_gather = torch.from_numpy(sample_seismic_data[source_idx]).float()
                     # Pre-procesar el sismograma de la fuente actual
                     input_tensor = ps_utils.preprocess_seismic_with_attributes(shot_gather, dt=DT)
-                    resized_input = F.interpolate(input_tensor.unsqueeze(0), size=TARGET_SHAPE, mode='bilinear', align_corners=False)
 
                     # Hacer la predicción para esta fuente
-                    prediction_norm = best_model(resized_input.to(DEVICE)).cpu()
+                    prediction_norm = best_model(input_tensor.unsqueeze(0).to(DEVICE)).cpu()
                     source_predictions.append(prediction_norm)
 
                 # Apilar y promediar las predicciones de todas las fuentes

@@ -5,6 +5,7 @@ from torch import nn
 from torch.optim import AdamW
 from tqdm.auto import tqdm
 from datetime import datetime
+from torch.amp import GradScaler, autocast
 from ml_utils import SeismicDataset, plot_training_history
 from ml_utils import AugmentationWrapper, calculate_mae
 from ps_utils import preprocess_seismic_with_attributes
@@ -16,19 +17,21 @@ from model import SimpleUnet
 # --- CONFIGURACIÓN DEL ENTRENAMIENTO ---
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Usando dispositivo: {DEVICE}")
-preprocessed_data_path = 'data/preprocessed_train/'
+preprocessed_data_path = '/mnt/data/'
 
 BATCH_SIZE = 32
-NUM_WORKERS = 0
+NUM_WORKERS = 8
 LEARNING_RATE = 1e-3
 NUM_EPOCHS = 50
 VMIN, VMAX = 1500.0, 4500.0
 VELOCITY_RANGE = VMAX - VMIN
-MODELS_DIR = 'models'
-CHECKPOINTS_DIR = 'checkpoints'
+MODELS_DIR = './models'
+CHECKPOINTS_DIR = './checkpoints'
+os.makedirs(MODELS_DIR, exist_ok=True)
+os.makedirs(CHECKPOINTS_DIR, exist_ok=True)
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-MODEL_SAVE_PATH = os.path.join(MODELS_DIR, f'best_efficientnet12_model_{timestamp}.pth')
-CHECKPOINT_SAVE_PATH = os.path.join(CHECKPOINTS_DIR, 'latest_checkpoint.pth')
+MODEL_SAVE_PATH = os.path.join(MODELS_DIR, f'best_efficientnetb7_model_{timestamp}.pth')
+CHECKPOINT_SAVE_PATH = os.path.join(CHECKPOINTS_DIR, 'latest_checkpoint_b7.pth')
 print(f"El mejor modelo se guardará en: {MODEL_SAVE_PATH}")
 
 # --- PREPARACIÓN DE DATOS ---
@@ -47,15 +50,16 @@ train_dataset_augmented = AugmentationWrapper(train_dataset, hflip_prob=0.5)
 
 # Creamos los DataLoaders
 train_loader = DataLoader(train_dataset_augmented, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
-val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE * 2, shuffle=False, num_workers=NUM_WORKERS, pin_memory=True)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS, pin_memory=True)
 
 print(f"\nDatos listos. Muestras de entrenamiento: {len(train_dataset)}, Muestras de validación: {len(val_dataset)}")
 
 # --- INICIALIZACIÓN DEL MODELO ---
-unet_model = SimpleUnet(encoder_name="resnet18", encoder_weights="imagenet", in_channels=4, out_classes=1).to(DEVICE)
+unet_model = SimpleUnet(encoder_name="timm-efficientnet-b7", encoder_weights="noisy-student", in_channels=4, out_classes=1).to(DEVICE)
 loss_fn = nn.L1Loss() # L1Loss es el MAE, perfecto para nuestra métrica
 optimizer = AdamW(unet_model.parameters(), lr=LEARNING_RATE)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
+scaler = GradScaler(device="cuda")
 
 print("Modelo, función de pérdida y optimizador inicializados.")
 
@@ -87,10 +91,13 @@ for epoch in range(start_epoch, NUM_EPOCHS):
         inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
 
         optimizer.zero_grad()
-        predictions = unet_model(inputs)
-        loss = loss_fn(predictions, targets)
-        loss.backward()
-        optimizer.step()
+        with autocast(device_type="cuda"):
+          predictions = unet_model(inputs)
+          loss = loss_fn(predictions, targets)
+
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
         train_loss_acum += loss.item()
 
@@ -102,15 +109,16 @@ for epoch in range(start_epoch, NUM_EPOCHS):
     all_targets = {}
     val_loss_acum = 0.0
     with torch.no_grad():
-        for inputs, targets, sample_ids in tqdm(val_loader, desc="Validación"):
-            inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
+      for inputs, targets, sample_ids in tqdm(val_loader, desc="Validación"):
+          inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
+          with autocast(device_type="cuda"):
             predictions = unet_model(inputs)
-            for i in range(len(sample_ids)):
-                sample_id = sample_ids[i]
-                if sample_id not in all_preds:
-                    all_preds[sample_id] = []
-                    all_targets[sample_id] = targets[i]
-                all_preds[sample_id].append(predictions[i])
+          for i in range(len(sample_ids)):
+              sample_id = sample_ids[i]
+              if sample_id not in all_preds:
+                  all_preds[sample_id] = []
+                  all_targets[sample_id] = targets[i]
+              all_preds[sample_id].append(predictions[i])
 
     avg_preds = []
     final_targets = []
@@ -153,7 +161,7 @@ plot_training_history(train_mae_history, val_mae_history)
 print("\n--- Visualizando la predicción del MEJOR modelo en un lote de validación ---")
 
 # 1. Crear una nueva instancia del modelo y cargar los pesos del mejor guardado
-best_model = SimpleUnet(encoder_name="resnet18", encoder_weights="imagenet", in_channels=4, out_classes=1)
+best_model = SimpleUnet(encoder_name="timm-efficientnet-b7", encoder_weights="noisy-student", in_channels=4, out_classes=1)
 best_model.load_state_dict(torch.load(MODEL_SAVE_PATH))
 best_model.to(DEVICE)
 best_model.eval() # Poner en modo evaluación
