@@ -9,23 +9,21 @@ from ml_utils import SeismicDataset, plot_training_history
 from ml_utils import AugmentationWrapper, calculate_mae
 from ps_utils import preprocess_seismic_with_attributes
 from utils import plot_map_comparison
-from model import SimpleUnet
-
-# 1. Recargar todos nuestros módulos
+from model import EfficientNet12
 
 # --- CONFIGURACIÓN DEL ENTRENAMIENTO ---
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Usando dispositivo: {DEVICE}")
-preprocessed_data_path = 'data/preprocessed_train/'
+preprocessed_data_path = '/content/dataset/preprocessed_train/'
 
-BATCH_SIZE = 32
-NUM_WORKERS = 0
+BATCH_SIZE = 64
+NUM_WORKERS = 8
 LEARNING_RATE = 1e-3
 NUM_EPOCHS = 50
 VMIN, VMAX = 1500.0, 4500.0
 VELOCITY_RANGE = VMAX - VMIN
-MODELS_DIR = 'models'
-CHECKPOINTS_DIR = 'checkpoints'
+MODELS_DIR = '/content/drive/MyDrive/models/'
+CHECKPOINTS_DIR = '/content/drive/MyDrive/models/checkpoints/'
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 MODEL_SAVE_PATH = os.path.join(MODELS_DIR, f'best_efficientnet12_model_{timestamp}.pth')
 CHECKPOINT_SAVE_PATH = os.path.join(CHECKPOINTS_DIR, 'latest_checkpoint.pth')
@@ -52,7 +50,7 @@ val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE * 2, shuffle=False, n
 print(f"\nDatos listos. Muestras de entrenamiento: {len(train_dataset)}, Muestras de validación: {len(val_dataset)}")
 
 # --- INICIALIZACIÓN DEL MODELO ---
-unet_model = SimpleUnet(encoder_name="resnet18", encoder_weights="imagenet", in_channels=4, out_classes=1).to(DEVICE)
+unet_model = EfficientNet12(in_channels=4, out_classes=1).to(DEVICE)
 loss_fn = nn.L1Loss() # L1Loss es el MAE, perfecto para nuestra métrica
 optimizer = AdamW(unet_model.parameters(), lr=LEARNING_RATE)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
@@ -73,8 +71,6 @@ if os.path.exists(CHECKPOINT_SAVE_PATH):
     scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
     start_epoch = checkpoint['epoch']
     best_val_mae = checkpoint['best_val_mae']
-    train_mae_history = checkpoint.get('train_mae_history', [])
-    val_mae_history = checkpoint.get('val_mae_history', [])
     print(f"Reanudando desde la época {start_epoch}")
 
 for epoch in range(start_epoch, NUM_EPOCHS):
@@ -132,13 +128,11 @@ for epoch in range(start_epoch, NUM_EPOCHS):
 
     print(f"Época {epoch+1} completada. Loss de Entrenamiento: {avg_train_mae_denorm:.2f} | MAE de Validación: {avg_val_mae_denorm:.2f}")
     checkpoint = {
-        'epoch': epoch + 1,
+        'epoch': epoch+1,
         'model_state_dict': unet_model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'scheduler_state_dict': scheduler.state_dict(),
-        'best_val_mae': best_val_mae,
-        'train_mae_history': train_mae_history,
-        'val_mae_history': val_mae_history
+        'best_val_mae': best_val_mae
     }
     torch.save(checkpoint, CHECKPOINT_SAVE_PATH)
     if avg_val_mae_denorm < best_val_mae:
@@ -153,7 +147,7 @@ plot_training_history(train_mae_history, val_mae_history)
 print("\n--- Visualizando la predicción del MEJOR modelo en un lote de validación ---")
 
 # 1. Crear una nueva instancia del modelo y cargar los pesos del mejor guardado
-best_model = SimpleUnet(encoder_name="resnet18", encoder_weights="imagenet", in_channels=4, out_classes=1)
+best_model = EfficientNet12(in_channels=4, out_classes=1, encoder_weights=None)
 best_model.load_state_dict(torch.load(MODEL_SAVE_PATH))
 best_model.to(DEVICE)
 best_model.eval() # Poner en modo evaluación

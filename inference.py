@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
     # --- CARGAR MODELO ---
     try:
-        best_model = model_loader.SimpleUnet(
+        best_model = model_loader.EfficientNet12(
             encoder_name="timm-efficientnet-l2",
             in_channels=4, 
             out_classes=1,
