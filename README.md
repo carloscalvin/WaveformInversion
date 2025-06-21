@@ -25,7 +25,7 @@ El modelo se desarrolla y entrena utilizando datos del dataset público **OpenFW
 
 ```
 .
-├── data/                  # Para datos preprocesados
+├── dataset/                  # Para datos preprocesados
 ├── models/                # Para guardar los checkpoints de los modelos entrenados
 ├── kaggle_submission.py   # Script para generar entregas de Kaggle
 ├── model.py               # Definición de la arquitectura del modelo (U-Net)

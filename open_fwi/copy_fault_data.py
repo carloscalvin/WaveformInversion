@@ -15,7 +15,7 @@ num_files_per_prefix = 1
 
 # Ruta base
 drive_base_path = r"G:\Mi unidad\WaveformInversionProject\OpenFWI"
-dataset_base_path = "data/open_fwi"
+dataset_base_path = "./dataset/open_fwi"
 
 # Función para copiar archivos según prefijos
 def copy_fault_family_files(family, prefixes, start_idx, num_files):

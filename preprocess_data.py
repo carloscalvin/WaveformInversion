@@ -9,7 +9,7 @@ def create_preprocessed_files(base_data_path, output_path, families_to_use):
 
     Args:
         base_data_path (str): Ruta al directorio raíz de los datos de entrenamiento ('kaggle/input/train_samples/').
-        output_path (str): Ruta donde se guardarán los ficheros preprocesados ('data/preprocessed_train/').
+        output_path (str): Ruta donde se guardarán los ficheros preprocesados ('dataset/preprocessed_train/').
         families_to_use (list): Lista de las familias de datos a procesar.
     """
     # Crear el directorio de salida principal si no existe
@@ -67,7 +67,7 @@ def create_preprocessed_files(base_data_path, output_path, families_to_use):
 if __name__ == '__main__':
     # --- CONFIGURACIÓN DEL PREPROCESADO ---
     BASE_DATA_PATH = 'kaggle/input/train_samples/'
-    OUTPUT_PATH = 'data/preprocessed_train/'
+    OUTPUT_PATH = 'dataset/preprocessed_train/'
     FAMILIES_TO_USE = [
         'FlatVel_A', 'FlatVel_B',
         'CurveVel_A', 'CurveVel_B',

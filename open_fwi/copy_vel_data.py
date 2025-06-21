@@ -13,7 +13,7 @@ num_files_to_copy = 2
 
 # Ruta base
 drive_base_path = r"G:\Mi unidad\WaveformInversionProject\OpenFWI"
-dataset_base_path = "./dataset"
+dataset_base_path = "./dataset/open_fwi"
 
 # Función para copiar ficheros
 def copy_family_files(family, start_num, num_files):
