@@ -39,35 +39,50 @@ def preprocess_seismic_with_attributes(shot_gather_tensor, dt=0.001):
     
     return torch.from_numpy(processed_channels).float()
 
-class EfficientNet12(nn.Module):
+class EfficientNetB7_Unet(nn.Module):
     def __init__(self, in_channels=4, out_classes=1):
         super().__init__()
         self.model = smp.Unet(
-            encoder_name="timm-efficientnet-l2",
+            encoder_name="timm-efficientnet-b7",
             encoder_weights=None,
             in_channels=in_channels,
             classes=out_classes,
             activation='sigmoid'
         )
+        self.final_adapter = nn.AdaptiveAvgPool2d((70, 70))
+        self._adapt_encoder_to_full_resolution()
+
+    def _adapt_encoder_to_full_resolution(self):
+        try:
+            encoder = self.model.encoder
+            new_stride = (5, 1)
+            print(f"Adaptando el 'stem' del encoder. Stride original: {encoder.conv_stem.stride}")
+            encoder.conv_stem.stride = new_stride
+            print(f"Nuevo stride del 'stem': {encoder.conv_stem.stride}")
+        except AttributeError:
+            print(f"AVISO: No se pudo modificar el 'stem' del encoder automáticamente para el backbone {self.model.encoder.name}.")
+
     def forward(self, x):
-        return self.model(x)
+        raw_output = self.model(x)
+        final_output = self.final_adapter(raw_output)
+        return final_output
 
 if __name__ == '__main__':
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    MODEL_PATH = '/kaggle/input/best-unet-model/best_efficientnet12_model_20250609_184324.pth'
+
+    MODEL_PATH = '/kaggle/input/best-b7-model/best_efficientnetb7_model_20250620_195611.pth'
     PATH_TO_TEST_DATA = '/kaggle/input/waveform-inversion/test/'
     
     VMIN, VMAX = 1500.0, 4500.0
     VELOCITY_RANGE = VMAX - VMIN
-    TARGET_SHAPE = (70, 70)
     DT = 0.001
     NUM_SOURCES_TO_ENSEMBLE = 5
 
     print(f"Usando dispositivo: {DEVICE}")
-    print(f"Cargando modelo desde: {MODEL_PATH}")
+    print(f"Cargando modelo EfficientNet-B7 desde: {MODEL_PATH}")
 
     try:
-        model = EfficientNet12(in_channels=4, out_classes=1)
+        model = EfficientNetB7_Unet(in_channels=4, out_classes=1)
         model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
         model.to(DEVICE)
         model.eval()
@@ -80,7 +95,7 @@ if __name__ == '__main__':
     try:
         test_files = [f for f in os.listdir(PATH_TO_TEST_DATA) if f.endswith('.npy')]
         print(f"\nIniciando inferencia en {len(test_files)} archivos de test...")
-        print(f"Se promediarán las predicciones de las {NUM_SOURCES_TO_ENSEMBLE} fuentes para cada archivo.")
+        print(f"Se promediarán las predicciones de {NUM_SOURCES_TO_ENSEMBLE} fuentes para cada archivo.")
 
         with torch.no_grad():
             for filename in tqdm(test_files, desc="Procesando archivos de test"):
@@ -88,26 +103,19 @@ if __name__ == '__main__':
                 seis_path = os.path.join(PATH_TO_TEST_DATA, filename)
                 sample_seismic_data = np.load(seis_path)
 
-               # Verificar dimensiones
                 if sample_seismic_data.ndim != 3 or sample_seismic_data.shape[0] < NUM_SOURCES_TO_ENSEMBLE:
-                    print(f"Aviso: Saltando archivo {filename} por tener una forma inesperada: {sample_seismic_data.shape}")
+                    print(f"\nAviso: Saltando archivo {filename} por tener una forma inesperada: {sample_seismic_data.shape}")
                     continue
 
                 source_predictions = []
-                # Iterar a través de las fuentes para crear el ensembling
                 for source_idx in range(NUM_SOURCES_TO_ENSEMBLE):
                     shot_gather = torch.from_numpy(sample_seismic_data[source_idx]).float()
-                    
-                    # Pre-procesar y predecir para la fuente actual
                     input_tensor = preprocess_seismic_with_attributes(shot_gather, dt=DT)
-                    resized_input = F.interpolate(input_tensor.unsqueeze(0), size=TARGET_SHAPE, mode='bilinear', align_corners=False)
-                    prediction_norm = model(resized_input.to(DEVICE)).cpu()
+                    prediction_norm = model(input_tensor.unsqueeze(0).to(DEVICE)).cpu()
                     source_predictions.append(prediction_norm)
 
-                # Apilar y promediar las predicciones
                 ensembled_prediction_norm = torch.stack(source_predictions).mean(dim=0)
                 
-                # Desnormalizar el resultado final promediado
                 prediction_denorm = ensembled_prediction_norm.squeeze().numpy() * VELOCITY_RANGE + VMIN
                 
                 for y_pos in range(prediction_denorm.shape[0]):
