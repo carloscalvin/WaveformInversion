@@ -87,7 +87,7 @@ def validate(model, validation_data_path, device, config):
     return np.mean(all_mae_scores)
 
 if __name__ == '__main__':
-    MODEL_TO_VALIDATE_PATH = 'models/efficientnet-b7_soup_model_20250620_195611.pth'
+    MODEL_TO_VALIDATE_PATH = 'models/best_efficientnetb7_model_20250621_173049.pth'
     VALIDATION_DATA_PATH = 'open_fwi'
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
