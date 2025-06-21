@@ -88,7 +88,7 @@ def validate(model, validation_data_path, device, config):
 
 if __name__ == '__main__':
     MODEL_TO_VALIDATE_PATH = 'models/best_efficientnetb7_model_20250620_195611.pth'
-    VALIDATION_DATA_PATH = 'dataset/open_fwi'
+    VALIDATION_DATA_PATH = 'open_fwi'
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
     config = {

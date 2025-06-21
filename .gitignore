@@ -3,3 +3,4 @@
 __pycache__/
 /models/
 /checkpoints/
+/open_fwi/
