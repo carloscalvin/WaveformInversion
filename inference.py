@@ -12,7 +12,7 @@ if __name__ == '__main__':
     # --- CONFIGURACIÓN DE INFERENCIA ---
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     SAMPLES_TO_VISUALIZE = 12
-    MODEL_PATH = 'models/best_efficientnetb7_model_20250620_195611.pth'
+    MODEL_PATH = 'models/efficientnet-b7_soup_model_20250620_195611.pth'
     BASE_DATA_PATH = 'kaggle/input/train_samples/'
     families_to_use = [
         'FlatVel_A', 'FlatVel_B',
