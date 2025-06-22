@@ -45,8 +45,11 @@ def create_preprocessed_files(base_data_path, output_path, families_to_use):
 
                 for i in range(num_samples):
                     # Extraer una única muestra completa
-                    velocity_map = vel_batch[i, 0] # Quitamos la dimensión del canal
-                    seismic_data_all_sources = seis_batch[i] # Mantenemos las 5 fuentes
+                    velocity_map_f32 = vel_batch[i, 0]
+                    seismic_data_f32 = seis_batch[i]
+
+                    velocity_map_f16 = velocity_map_f32.astype(np.float16)
+                    seismic_data_f16 = seismic_data_f32.astype(np.float16)
 
                     # Generar un nombre de fichero descriptivo
                     base_filename = os.path.basename(seis_path).replace('.npy', '')
@@ -56,8 +59,8 @@ def create_preprocessed_files(base_data_path, output_path, families_to_use):
                     # Guardar como .npz comprimido para eficiencia
                     np.savez_compressed(
                         output_filepath, 
-                        velocity_map=velocity_map, 
-                        seismic_data=seismic_data_all_sources
+                        velocity_map=velocity_map_f16, 
+                        seismic_data=seismic_data_f16
                     )
             except FileNotFoundError:
                 print(f"Aviso: No se encontró el par para {seis_path} o {vel_path}. Saltando.")
@@ -67,7 +70,7 @@ def create_preprocessed_files(base_data_path, output_path, families_to_use):
 if __name__ == '__main__':
     # --- CONFIGURACIÓN DEL PREPROCESADO ---
     BASE_DATA_PATH = 'kaggle/input/train_samples/'
-    OUTPUT_PATH = 'dataset/preprocessed_train/'
+    OUTPUT_PATH = 'dataset/preprocessed_train_f16/'
     FAMILIES_TO_USE = [
         'FlatVel_A', 'FlatVel_B',
         'CurveVel_A', 'CurveVel_B',
