@@ -9,3 +9,4 @@ scikit-image
 bruges
 scikit-fmm
 optuna
+seaborn

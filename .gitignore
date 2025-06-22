@@ -4,3 +4,5 @@ __pycache__/
 /models/
 /checkpoints/
 /open_fwi/
+/classifier/dataset/
+/classifier/models/
