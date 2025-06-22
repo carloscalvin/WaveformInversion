@@ -101,7 +101,7 @@ def validate_per_family(model, validation_data_path, device, config):
     return final_results
 
 if __name__ == '__main__':
-    MODEL_TO_VALIDATE_PATH = 'models/best_efficientnetb7_model_20250621_173049.pth'
+    MODEL_TO_VALIDATE_PATH = 'models/best_efficientnetb7_model_20250622_004416.pth'
     VALIDATION_DATA_PATH = 'open_fwi'
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
