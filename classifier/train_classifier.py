@@ -10,7 +10,7 @@ from tqdm.auto import tqdm
 config = {
     'DATA_PATH': './dataset/',
     'DEVICE': "cuda" if torch.cuda.is_available() else "cpu",
-    'NUM_EPOCHS': 50,
+    'NUM_EPOCHS': 10,
     'BATCH_SIZE': 128,
     'LEARNING_RATE': 1e-3,
     'VMIN': 1500.0,
@@ -94,7 +94,7 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.AdamW(model.parameters(), lr=config['LEARNING_RATE'])
 best_accuracy = 0.0
 
-print("\n--- Iniciando Entrenamiento del Clasificador ---")
+print("\n--- Iniciando entrenamiento del clasificador ---")
 
 for epoch in range(config['NUM_EPOCHS']):
     model.train()
