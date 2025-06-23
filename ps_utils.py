@@ -89,3 +89,16 @@ def preprocess_seismic_with_attributes(shot_gather_tensor, dt=0.001):
     ], axis=0)
     
     return torch.from_numpy(processed_channels).float()
+
+def generate_map_from_seismic(model, seismic_sample, device, num_sources, dt, velocity_range, vmin):
+    model.to(device).eval()
+    source_predictions = []
+    with torch.no_grad():
+        for source_idx in range(num_sources):
+            shot_gather = seismic_sample[source_idx].to(device)
+            input_tensor = preprocess_seismic_with_attributes(shot_gather, dt=dt)
+            prediction_norm = model(input_tensor.unsqueeze(0).to(device))
+            source_predictions.append(prediction_norm)
+    ensembled_prediction_norm = torch.stack(source_predictions).mean(dim=0)
+    prediction_denorm = ensembled_prediction_norm.squeeze().cpu().numpy() * velocity_range + vmin
+    return prediction_denorm
