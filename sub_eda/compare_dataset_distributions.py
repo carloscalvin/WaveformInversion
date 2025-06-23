@@ -5,6 +5,7 @@ import torch
 import glob
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
+import math
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -15,8 +16,8 @@ GENERALIST_MODEL_PATH = '../models/best_efficientnetb7_model_20250621_173049.pth
 KAGGLE_DATA_PATH = '../kaggle/input/test/'
 KAGGLE_CLASSIFICATION_CSV = './submissions/test_set_family_predictions.csv'
 OPENFWI_PARENT_PATH = '../open_fwi/'
-TARGET_FAMILY = 'FlatVel'
-MAX_SAMPLES_PER_DATASET = 500
+TARGET_FAMILY = 'Style'
+TOTAL_SAMPLES_PER_DATASET = 1000
 
 config = {
     'DEVICE': "cuda" if torch.cuda.is_available() else "cpu",
@@ -24,7 +25,7 @@ config = {
 }
 config['VELOCITY_RANGE'] = config['VMAX'] - config['VMIN']
 
-def get_velocities_from_preclassified_set(target_family, classification_csv_path, data_path, gen_model, config, max_samples):
+def get_velocities_from_preclassified_set(target_family, classification_csv_path, data_path, gen_model, config, total_samples):
     print(f"Procesando el dataset de Kaggle para la familia '{target_family}'...")
     try:
         df_classification = pd.read_csv(classification_csv_path)
@@ -32,7 +33,7 @@ def get_velocities_from_preclassified_set(target_family, classification_csv_path
         print(f"ERROR: No se encontró el archivo de clasificación en {classification_csv_path}")
         return []
 
-    target_oids = df_classification[df_classification['predicted_family'] == target_family]['oid'].tolist()[:max_samples]
+    target_oids = df_classification[df_classification['predicted_family'] == target_family]['oid'].tolist()[:total_samples]
     
     if not target_oids:
         print(f"No se encontraron OIDs para la familia '{target_family}' en el CSV.")
@@ -54,8 +55,8 @@ def get_velocities_from_preclassified_set(target_family, classification_csv_path
             
     return all_velocities
 
-def get_openfwi_velocities_from_folders(target_family, openfwi_path, gen_model, config, max_samples):
-    print(f"Procesando hasta {max_samples} muestras de OpenFWI para la familia '{target_family}'...")
+def get_openfwi_velocities_from_folders(target_family, openfwi_path, gen_model, config, total_samples):
+    print(f"Procesando un total de {total_samples} muestras de OpenFWI para la familia '{target_family}'...")
     
     search_pattern = os.path.join(openfwi_path, target_family + '*')
     family_folders = glob.glob(search_pattern)
@@ -64,39 +65,43 @@ def get_openfwi_velocities_from_folders(target_family, openfwi_path, gen_model, 
         print(f"AVISO: No se encontraron carpetas para la familia '{target_family}'.")
         return []
     
-    print(f"Carpetas encontradas: {', '.join([os.path.basename(f) for f in family_folders])}")
-
-    all_seismic_files = []
-    for folder_path in family_folders:
-        seismic_files_in_folder = glob.glob(os.path.join(folder_path, 'data', '*.npy'))
-        all_seismic_files.extend(seismic_files_in_folder)
-
-    if not all_seismic_files:
-        print("No se encontraron archivos .npy en las subcarpetas 'data'.")
-        return []
+    num_subfolders = len(family_folders)
+    samples_per_folder = math.ceil(total_samples / num_subfolders)
+    print(f"Se encontraron {num_subfolders} sub-carpetas. Se intentará coger ~{samples_per_folder} muestras de cada una.")
 
     all_velocities = []
-    samples_processed_count = 0
-    
-    for seis_path in tqdm(all_seismic_files, desc=f"Procesando archivos de OpenFWI ({target_family})"):
-        if samples_processed_count >= max_samples:
-            break
-        batch_seismic_data = np.load(seis_path)
-        for sample_seismic_data in batch_seismic_data:
-            if samples_processed_count >= max_samples:
+    for folder_path in family_folders:
+        folder_name = os.path.basename(folder_path)
+        print(f"Procesando sub-carpeta: {folder_name}")
+        
+        seismic_files_in_folder = glob.glob(os.path.join(folder_path, 'data', '*.npy'))
+        if not seismic_files_in_folder:
+            print(f"  - No se encontraron archivos en {folder_path}/data")
+            continue
+
+        samples_processed_count = 0
+        
+        for seis_path in tqdm(seismic_files_in_folder, desc=f"Procesando {folder_name}"):
+            if samples_processed_count >= samples_per_folder:
                 break
 
-            seismic_tensor = torch.from_numpy(sample_seismic_data).float()
-            predicted_map = ps_utils.generate_map_from_seismic(gen_model, 
-                                                                seismic_tensor,
-                                                                config['DEVICE'],
-                                                                config['NUM_SOURCES_TO_ENSEMBLE'],
-                                                                config['DT'],
-                                                                config['VELOCITY_RANGE'],
-                                                                config['VMIN'])  
-            all_velocities.extend(predicted_map.flatten())
-            samples_processed_count += 1
+            batch_seismic_data = np.load(seis_path)
+            
+            for sample_seismic_data in batch_seismic_data:
+                if samples_processed_count >= samples_per_folder:
+                    break
 
+                seismic_tensor = torch.from_numpy(sample_seismic_data).float()
+                predicted_map = ps_utils.generate_map_from_seismic(gen_model, 
+                                                                    seismic_tensor,
+                                                                    config['DEVICE'],
+                                                                    config['NUM_SOURCES_TO_ENSEMBLE'],
+                                                                    config['DT'],
+                                                                    config['VELOCITY_RANGE'],
+                                                                    config['VMIN'])     
+                all_velocities.extend(predicted_map.flatten())
+                samples_processed_count += 1
+    
     return all_velocities
 
 if __name__ == '__main__':
@@ -109,9 +114,9 @@ if __name__ == '__main__':
     print("Modelo cargado.")
 
     kaggle_velocities = get_velocities_from_preclassified_set(TARGET_FAMILY, KAGGLE_CLASSIFICATION_CSV, KAGGLE_DATA_PATH, 
-                                                              generalist_model, config, MAX_SAMPLES_PER_DATASET)
+                                                              generalist_model, config, TOTAL_SAMPLES_PER_DATASET)
     openfwi_velocities = get_openfwi_velocities_from_folders(TARGET_FAMILY, OPENFWI_PARENT_PATH, 
-                                                             generalist_model, config, MAX_SAMPLES_PER_DATASET)
+                                                             generalist_model, config, TOTAL_SAMPLES_PER_DATASET)
 
     if not kaggle_velocities or not openfwi_velocities:
         print(f"\nNo se pudieron obtener las velocidades para la familia '{TARGET_FAMILY}' en uno o ambos datasets. No se puede comparar.")
