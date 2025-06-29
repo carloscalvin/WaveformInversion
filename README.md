@@ -79,33 +79,6 @@ Para realizar una predicción sobre un nuevo sismograma usando un modelo ya entr
 python inference.py --model_path models/best_model.pth --input_file ruta/a/tu/sismograma.npy
 ```
 
-## Hoja de Ruta del Proyecto
-
-A continuación se detallan las tareas completadas y los siguientes pasos planeados.
-
-### Realizado
-
-- [x] **1. Análisis exploratorio de datos (EDA)**
-- [x] **2. Ingeniería de características con atributos sísmicos**
-- [x] **3. Creación del pipeline de entrenamiento (prueba de concepto)**
-- [x] **4. Primera iteración y submission a Kaggle**
-- [x] **5. Mejora de la robustez del modelo y validación**
-- [x] **6. (BLOQUEANTE) Optimizar pipeline de datos: preprocesar a ficheros individuales**
-
-### Pendiente
-
-- [ ] **7. Entrenamiento a escala: obtener baseline con datos completos**
-- [ ] **8. Experimentación: probar arquitecturas de modelo más grandes**
-- [ ] **9. Experimentación: entrenar con función de pérdida híbrida**
-- [ ] **10. Desarrollo del refinador (Test-Time Optimization - TTO)**
-- [ ] **11. Evaluación final y submission**
-
-### Mejoras avanzadas (backlog)
-
-- [ ] **12. Experimentación: crear un ensemble de modelos**
-- [ ] **13. Análisis: investigar patrones de error del modelo**
-- [ ] **14. Optimización: afinar hiperparámetros del modelo base**
-
 ## Licencia
 
 Este proyecto está bajo la Licencia MIT. Consulta el fichero `LICENSE` para más detalles.
