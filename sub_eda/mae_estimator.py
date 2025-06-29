@@ -25,9 +25,9 @@ def calculate_estimated_mae(family_name: str, mae_general: float, mae_experiment
 
 if __name__ == '__main__':
     print("--- Calculadora de MAE estimado por familia ---")
-    mae_general = 25.6 
-    family_name = 'CurveFault'
-    mae_experimental = 158.2
+    mae_general = 306.5 
+    family_name = 'Style'
+    mae_experimental = 396.1
 
     try:
         family_mae = calculate_estimated_mae(

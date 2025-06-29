@@ -1,14 +1,14 @@
 import pandas as pd
 import os
 
-PATH_MODEL_A = './submissions/submission_56.3.csv' 
-PATH_MODEL_B = './submissions/submission_25.6.csv'
+PATH_MODEL_A = './submissions/submission_style18.csv' 
+PATH_MODEL_B = './submissions/ensemble_flatvel_from_submission_28.2_to_25.6.csv'
 PATH_CLASSIFICATION = './submissions/test_set_family_predictions.csv'
-PATH_OUTPUT = './submissions/ensemble_flatvel_from_submission_56.3_0_1.csv'
-TARGET_FAMILY = 'FlatVel'
+PATH_OUTPUT = './submissions/ensemble_final_epoch18.csv'
+TARGET_FAMILY = 'Style'
 CONFIDENCE_THRESHOLD = 0.98
-WEIGHT_A = 0.1
-WEIGHT_B = 0.9
+WEIGHT_A = 1
+WEIGHT_B = 0
 
 def create_targeted_ensemble(path_a, path_b, classification_path, output_path,
                              target_family, confidence_threshold, weight_a, weight_b):

@@ -1,10 +1,10 @@
 import pandas as pd
 import os
 
-BASE_SUBMISSION_PATH = './submissions/submission_25.6.csv' 
+BASE_SUBMISSION_PATH = './submissions/submission_style18.csv' 
 FAMILY_CLASSIFICATION_PATH = './submissions/test_set_family_predictions.csv'
-OUTPUT_PATH = './submissions/experiment_curvefault_to_3000.csv'
-TARGET_FAMILY = 'CurveFault'
+OUTPUT_PATH = './submissions/submission_style18_style_to_3000.csv'
+TARGET_FAMILY = 'Style'
 TARGET_VALUE = 3000.0
 
 def create_experimental_submission(base_path, classification_path, output_path, target_family, value):
